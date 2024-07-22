@@ -12,15 +12,26 @@ jobs:
       - name: Use Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: '14'
-      - run: npm ci
-      - name: Build
+          node-version: '16'
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.OS }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.OS }}-node-
+
+      - name: Install dependencies
+        run: npm install 
+
+      - name: Change to project directory and build
         id: build
         run: |
           cd packages/assignment-6
-          npm run tsc 2>&1 | tee tsc_error.log || true
           npm run build 2>&1 | tee build_error.log || true
         continue-on-error: true
+
       - name: Comment PR on Build Failure
         if: failure() || steps.build.outcome == 'failure'
         uses: actions/github-script@v6
@@ -28,11 +39,10 @@ jobs:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const fs = require('fs')
-            const tscErrorLog = fs.readFileSync(process.env.GITHUB_WORKSPACE + '/packages/assignment-6/tsc_error.log', 'utf8')
             const buildErrorLog = fs.readFileSync(process.env.GITHUB_WORKSPACE + '/packages/assignment-6/build_error.log', 'utf8')
             
             let failureReasons = []
-            if (tscErrorLog.includes('error TS')) {
+            if (buildErrorLog.includes('error TS')) {
               failureReasons.push('TypeScript Compilation Error')
             }
             if (buildErrorLog.includes('vite build') && buildErrorLog.includes('error')) {
@@ -43,7 +53,6 @@ jobs:
             }
             
             let commentBody = `## Build Failed: ${failureReasons.join(' and ')}\n\n`
-            commentBody += '### TypeScript Compilation Log\n\n```\n' + tscErrorLog + '\n```\n\n'
             commentBody += '### Build Log\n\n```\n' + buildErrorLog + '\n```'
             
             github.rest.issues.createComment({
