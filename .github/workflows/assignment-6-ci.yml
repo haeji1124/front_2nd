@@ -20,7 +20,7 @@ jobs:
       - name: Change to project directory and build
         id: build
         run: |
-          cd packages/assignment-6
+          cd packages/assignment-61
           npm run build > build_output.log 2>&1 || true
           echo "Build completed. Check build_output.log for details."
 
