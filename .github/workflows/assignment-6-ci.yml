@@ -1,9 +1,3 @@
-name: CI Assignment 6
-
-on:
-  pull_request:
-    types: [opened, synchronize] 
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -28,9 +22,19 @@ jobs:
       - name: Change to project directory and build
         id: build
         run: |
-          cd packages/assignment-61
-          npm run build 2>&1 | tee $GITHUB_WORKSPACE/build_error.log || true
+          cd packages/assignment-6
+          npm run build 2>&1 | tee build_error.log
+          cp build_error.log $GITHUB_WORKSPACE/build_error.log
         continue-on-error: true
+
+      - name: List directory contents
+        run: |
+          echo "Current directory:"
+          pwd
+          echo "Contents of current directory:"
+          ls -R
+          echo "Contents of GITHUB_WORKSPACE:"
+          ls -R $GITHUB_WORKSPACE
 
       - name: Comment PR on Build Failure
         if: failure() || steps.build.outcome == 'failure'
@@ -40,11 +44,45 @@ jobs:
           script: |
             const fs = require('fs')
             const path = require('path')
+            
+            function findFile(name, dir) {
+              const files = fs.readdirSync(dir)
+              for (const file of files) {
+                const filePath = path.join(dir, file)
+                const stat = fs.statSync(filePath)
+                if (stat.isDirectory()) {
+                  const found = findFile(name, filePath)
+                  if (found) return found
+                } else if (file === name) {
+                  return filePath
+                }
+              }
+            }
+            
             try {
-              const buildErrorLogPath = path.join(process.env.GITHUB_WORKSPACE, 'build_error.log')
-              console.log('Attempting to read log file from:', buildErrorLogPath)
+              console.log('Current working directory:', process.cwd())
+              console.log('GITHUB_WORKSPACE:', process.env.GITHUB_WORKSPACE)
               
-              if (fs.existsSync(buildErrorLogPath)) {
+              const possiblePaths = [
+                'build_error.log',
+                path.join(process.env.GITHUB_WORKSPACE, 'build_error.log'),
+                path.join(process.env.GITHUB_WORKSPACE, 'packages', 'assignment-6', 'build_error.log')
+              ]
+              
+              let buildErrorLogPath
+              for (const p of possiblePaths) {
+                if (fs.existsSync(p)) {
+                  buildErrorLogPath = p
+                  break
+                }
+              }
+              
+              if (!buildErrorLogPath) {
+                buildErrorLogPath = findFile('build_error.log', process.env.GITHUB_WORKSPACE)
+              }
+              
+              if (buildErrorLogPath) {
+                console.log('Found log file at:', buildErrorLogPath)
                 const buildErrorLog = fs.readFileSync(buildErrorLogPath, 'utf8')
                 
                 let failureReasons = []
@@ -68,8 +106,8 @@ jobs:
                   body: commentBody
                 })
               } else {
-                console.error('Build error log file not found')
-                core.setFailed('Build error log file not found')
+                console.error('Build error log file not found after searching')
+                core.setFailed('Build error log file not found after searching')
               }
             } catch (error) {
               console.error('Error in comment creation:', error)
