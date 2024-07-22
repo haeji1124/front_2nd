@@ -29,7 +29,7 @@ jobs:
       
       - name: Change to project directory and build
         run: |
-          cd packages/assignment-6
+          cd packages/assignment-61
           npm run tsc || echo "TypeScript compilation failed"
           npm run build || echo "Build failed"
       
@@ -73,8 +73,7 @@ jobs:
           cd packages/assignment-6
           npm run lint > lint_output.txt 2>&1 || echo "LINT_FAILED=true" >> $GITHUB_ENV
         
-      - name: Comment ESLint errors
-        if: failure()
+      - name: Comment ESLint output
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
@@ -82,7 +81,7 @@ jobs:
             const fs = require('fs')
             let lintOutput = ''
             try {
-              lintOutput = fs.readFileSync('/home/runner/work/react-assignment/react-assignment/packages/assignment-6/lint_output.txt', 'utf8')
+              lintOutput = fs.readFileSync('/home/runner/work/front_2nd/front_2nd/packages/assignment-6/lint_output.txt', 'utf8')
               
               // ESLint 결과 파싱
               const lines = lintOutput.split('\n')
@@ -118,7 +117,9 @@ jobs:
 
       - name: Check lint result
         if: env.LINT_FAILED == 'true'
-        run: exit 1
+        run: |
+          cat lint_output.txt
+          exit 1
 
   test:
     runs-on: ubuntu-latest
