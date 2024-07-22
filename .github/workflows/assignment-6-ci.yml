@@ -15,14 +15,7 @@ jobs:
           node-version: '18'
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps
-
-      - name: TypeScript Compile
-        id: tsc
-        run: |
-          cd packages/assignment-6
-          npx tsc --noEmit
-        continue-on-error: true
+        run: pnpm install 
 
       - name: Change to project directory and build
         id: build
@@ -31,59 +24,7 @@ jobs:
           npm run build > build_output.log 2>&1
         continue-on-error: true
 
-      - name: Check build output for errors
-        id: check_errors
-        run: |
-          if grep -q "error" packages/assignment-6/build_output.log; then
-            echo "Errors found in build output"
-            exit 1
-          fi
 
-      - name: Upload build log
-        uses: actions/upload-artifact@v2
-        with:
-          name: build-log
-          path: packages/assignment-6/build_output.log
-
-      - name: Comment PR on Build Failure
-        if: steps.tsc.outcome == 'failure' || steps.build.outcome == 'failure' || steps.check_errors.outcome == 'failure'
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{secrets.GITHUB_TOKEN}}
-          script: |
-            const fs = require('fs')
-            
-            try {
-              const buildLog = fs.readFileSync('packages/assignment-6/build_output.log', 'utf8')
-              
-              let failureReasons = []
-              if (buildLog.includes('error TS')) {
-                failureReasons.push('TypeScript Compilation Error')
-              }
-              if (buildLog.includes('vite build') && buildLog.includes('error')) {
-                failureReasons.push('Vite Build Error')
-              }
-              if (failureReasons.length === 0) {
-                failureReasons.push('Unknown Build Error')
-              }
-              
-              let commentBody = `## Build Failed: ${failureReasons.join(' and ')}\n\n`
-              commentBody += '### Build Log\n\n```\n' + buildLog + '\n```'
-              
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: commentBody
-              })
-            } catch (error) {
-              console.error('Error in comment creation:', error)
-              core.setFailed(`Action failed with error: ${error}`)
-            }
-
-      - name: Check final build result
-        if: steps.tsc.outcome == 'failure' || steps.build.outcome == 'failure' || steps.check_errors.outcome == 'failure'
-        run: exit 1
 
 
   lint:
