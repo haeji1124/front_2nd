@@ -3,8 +3,6 @@ name: CI Assignment 6
 on:
   pull_request:
     types: [opened, synchronize]
-    paths:
-      - 'packages/assignment-6/**'
 
 jobs:
   build:
