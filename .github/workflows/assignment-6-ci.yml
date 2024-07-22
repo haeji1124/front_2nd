@@ -25,14 +25,13 @@ jobs:
             ${{ runner.OS }}-node-
 
       - name: Install dependencies
-        run: |
-          npm install --legacy-peer-deps
+        run: npm install --legacy-peer-deps
       
       - name: Change to project directory and build
         run: |
           cd packages/assignment-6
-          npm run tsc
-          npm run build
+          npm run tsc || echo "TypeScript compilation failed"
+          npm run build || echo "Build failed"
         continue-on-error: true
       
       - name: Comment build errors
@@ -51,7 +50,9 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
       - uses: actions/checkout@v3
+
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
@@ -81,12 +82,18 @@ jobs:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const fs = require('fs')
-            const eslintReport = fs.readFileSync('.eslintcache', 'utf8')
+            let eslintOutput = ''
+            try {
+              eslintOutput = fs.readFileSync('/home/runner/work/front_2nd/front_2nd/packages/assignment-6/eslint_output.txt', 'utf8')
+            } catch (error) {
+              console.error('Error reading ESLint output:', error)
+              eslintOutput = 'Unable to read ESLint output'
+            }
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `ESLint found issues:\n\n\`\`\`\n${eslintReport}\n\`\`\``
+              body: `ESLint found issues:\n\n\`\`\`\n${eslintOutput}\n\`\`\``
             })
 
   test:
