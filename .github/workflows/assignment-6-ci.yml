@@ -71,7 +71,7 @@ jobs:
       - name: Run ESLint
         run: |
           cd packages/assignment-6
-          npm run lint || echo "Linting failed"
+          npm run lint > lint_output.txt 2>&1 || echo "LINT_FAILED=true" >> $GITHUB_ENV
         
       - name: Comment ESLint errors
         if: failure()
