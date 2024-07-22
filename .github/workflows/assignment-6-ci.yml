@@ -17,12 +17,27 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      - name: TypeScript Compile
+        id: tsc
+        run: |
+          cd packages/assignment-6
+          npx tsc --noEmit
+        continue-on-error: true
+
       - name: Change to project directory and build
         id: build
         run: |
           cd packages/assignment-6
-          npm run build > build_output.log 2>&1 || true
-          echo "Build completed. Check build_output.log for details."
+          npm run build > build_output.log 2>&1
+        continue-on-error: true
+
+      - name: Check build output for errors
+        id: check_errors
+        run: |
+          if grep -q "error" packages/assignment-6/build_output.log; then
+            echo "Errors found in build output"
+            exit 1
+          fi
 
       - name: Upload build log
         uses: actions/upload-artifact@v2
@@ -31,40 +46,15 @@ jobs:
           path: packages/assignment-6/build_output.log
 
       - name: Comment PR on Build Failure
-        if: failure() || steps.build.outcome == 'failure'
+        if: steps.tsc.outcome == 'failure' || steps.build.outcome == 'failure' || steps.check_errors.outcome == 'failure'
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const fs = require('fs')
-            const path = require('path')
-            
-            async function downloadArtifact(name) {
-              const artifact = await github.rest.actions.listWorkflowRunArtifacts({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                run_id: context.runId
-              }).then(res => res.data.artifacts.find(a => a.name === name))
-              
-              if (!artifact) throw new Error(`Artifact '${name}' not found`)
-              
-              const download = await github.rest.actions.downloadArtifact({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                artifact_id: artifact.id,
-                archive_format: 'zip'
-              })
-              
-              const AdmZip = require('adm-zip')
-              const zip = new AdmZip(Buffer.from(download.data))
-              zip.extractAllTo('.')
-              
-              return fs.readFileSync('build_output.log', 'utf8')
-            }
             
             try {
-              console.log('Downloading build log artifact...')
-              const buildLog = await downloadArtifact('build-log')
+              const buildLog = fs.readFileSync('packages/assignment-6/build_output.log', 'utf8')
               
               let failureReasons = []
               if (buildLog.includes('error TS')) {
@@ -91,9 +81,10 @@ jobs:
               core.setFailed(`Action failed with error: ${error}`)
             }
 
-      - name: Check build result
-        if: steps.build.outcome == 'failure'
+      - name: Check final build result
+        if: steps.tsc.outcome == 'failure' || steps.build.outcome == 'failure' || steps.check_errors.outcome == 'failure'
         run: exit 1
+
 
   lint:
     runs-on: ubuntu-latest
