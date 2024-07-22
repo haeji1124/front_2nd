@@ -79,42 +79,46 @@ jobs:
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
-          const fs = require('fs')
-          let lintOutput = ''
-          try {
-            lintOutput = fs.readFileSync('/home/runner/work/react-assignment/react-assignment/packages/assignment-6/lint_output.txt', 'utf8')
-            
-            // ESLint 결과 파싱
-            const lines = lintOutput.split('\n')
-            let formattedOutput = 'ESLint Results\n\n'
-            let errorCount = 0
-            let warningCount = 0
-            
-            for (const line of lines) {
-              if (line.includes('error') || line.includes('warning')) {
-                formattedOutput += line + '\n'
-                if (line.includes('error')) errorCount++
-                if (line.includes('warning')) warningCount++
+            const fs = require('fs')
+            let lintOutput = ''
+            try {
+              lintOutput = fs.readFileSync('/home/runner/work/react-assignment/react-assignment/packages/assignment-6/lint_output.txt', 'utf8')
+              
+              // ESLint 결과 파싱
+              const lines = lintOutput.split('\n')
+              let formattedOutput = 'ESLint Results\n\n'
+              let errorCount = 0
+              let warningCount = 0
+              
+              for (const line of lines) {
+                if (line.includes('error') || line.includes('warning')) {
+                  formattedOutput += line + '\n'
+                  if (line.includes('error')) errorCount++
+                  if (line.includes('warning')) warningCount++
+                }
               }
+              
+              formattedOutput += `\n✖ ${errorCount + warningCount} problem${errorCount + warningCount !== 1 ? 's' : ''} (${errorCount} error${errorCount !== 1 ? 's' : ''}, ${warningCount} warning${warningCount !== 1 ? 's' : ''})`
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: formattedOutput
+              })
+            } catch (error) {
+              console.error('Error reading or parsing lint output:', error)
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: 'Unable to read or parse lint output'
+              })
             }
-            
-            formattedOutput += `\n✖ ${errorCount + warningCount} problem${errorCount + warningCount !== 1 ? 's' : ''} (${errorCount} error${errorCount !== 1 ? 's' : ''}, ${warningCount} warning${warningCount !== 1 ? 's' : ''})`
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: formattedOutput
-            })
-          } catch (error) {
-            console.error('Error reading or parsing lint output:', error)
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: 'Unable to read or parse lint output'
-            })
-          }
+
+      - name: Check lint result
+        if: env.LINT_FAILED == 'true'
+        run: exit 1
 
   test:
     runs-on: ubuntu-latest
