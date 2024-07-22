@@ -93,42 +93,19 @@ jobs:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const fs = require('fs')
+            let eslintOutput = ''
             try {
-              const eslintReport = JSON.parse(fs.readFileSync('/home/runner/work/front_2nd/front_2nd/packages/assignment-6/eslint_report.json', 'utf8'))
-              
-              let formattedOutput = 'ESLint Results\n\n'
-              let errorCount = 0
-              let warningCount = 0
-              
-              eslintReport.forEach(file => {
-                if (file.messages.length > 0) {
-                  formattedOutput += `File: ${file.filePath}\n`
-                  file.messages.forEach(message => {
-                    formattedOutput += `  ${message.line}:${message.column} - ${message.message} (${message.ruleId})\n`
-                    if (message.severity === 2) errorCount++
-                    if (message.severity === 1) warningCount++
-                  })
-                  formattedOutput += '\n'
-                }
-              })
-              
-              formattedOutput += `\n✖ ${errorCount + warningCount} problem${errorCount + warningCount !== 1 ? 's' : ''} (${errorCount} error${errorCount !== 1 ? 's' : ''}, ${warningCount} warning${warningCount !== 1 ? 's' : ''})`
-              
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: formattedOutput
-              })
+              eslintOutput = fs.readFileSync('/home/runner/work/front_2nd/front_2nd/packages/assignment-6/eslint_output.txt', 'utf8')
             } catch (error) {
-              console.error('Error reading or parsing ESLint output:', error)
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: 'Unable to read or parse ESLint output'
-              })
+              console.error('Error reading ESLint output:', error)
+              eslintOutput = 'Unable to read ESLint output'
             }
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `ESLint found issues:\n\n\`\`\`\n${eslintOutput}\n\`\`\``
+            })
 
       - name: Check lint result
         if: env.LINT_FAILED == 'true'
