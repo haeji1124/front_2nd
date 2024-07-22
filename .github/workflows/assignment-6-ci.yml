@@ -12,7 +12,7 @@ jobs:
       - name: Use Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: '16'
+          node-version: '18'
 
       - name: Cache dependencies
         uses: actions/cache@v3
@@ -23,12 +23,12 @@ jobs:
             ${{ runner.OS }}-node-
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps
+        run: npm install
 
       - name: Change to project directory and build
         id: build
         run: |
-          cd packages/assignment-61
+          cd packages/assignment-6
           npm run build 2>&1 | tee build_error.log || true
         continue-on-error: true
 
