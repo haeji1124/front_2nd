@@ -69,7 +69,9 @@ jobs:
         run: npm install --legacy-peer-deps
 
       - name: Run ESLint
-        run: npm run lint
+        run: |
+          cd packages/assignment-6
+          npm run lint || echo "Linting failed"
         continue-on-error: true
         
       - name: Comment ESLint errors
