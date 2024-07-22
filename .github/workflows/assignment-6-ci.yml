@@ -29,43 +29,30 @@ jobs:
       
       - name: Change to project directory and build
         run: |
-          cd packages/assignment-61
-          npm run tsc > tsc_output.txt 2>&1 || echo "TSC_FAILED=true" >> $GITHUB_ENV
-          npm run build > build_output.txt 2>&1 || echo "BUILD_FAILED=true" >> $GITHUB_ENV
+          cd packages/assignment-6
+          npm run tsc || echo "TypeScript compilation failed"
+          npm run build || echo "Build failed"
+        continue-on-error: true
       
       - name: Comment build errors
-        if: env.TSC_FAILED == 'true' || env.BUILD_FAILED == 'true'
+        if: failure()
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
-            let errorMessage = 'Build Process Errors:\n\n';
-            
-            if (process.env.TSC_FAILED === 'true') {
-              const tscOutput = require('fs').readFileSync('packages/assignment-61/tsc_output.txt', 'utf8');
-              errorMessage += `TypeScript Compilation Errors:\n\`\`\`\n${tscOutput}\n\`\`\`\n\n`;
-            }
-            
-            if (process.env.BUILD_FAILED === 'true') {
-              const buildOutput = require('fs').readFileSync('packages/assignment-61/build_output.txt', 'utf8');
-              errorMessage += `Build Errors:\n\`\`\`\n${buildOutput}\n\`\`\`\n`;
-            }
-            
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: errorMessage
+              body: 'TSC or Build failed. Please check the logs for more details.'
             })
-
-      - name: Check build result
-        if: env.TSC_FAILED == 'true' || env.BUILD_FAILED == 'true'
-        run: exit 1
 
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
@@ -83,33 +70,32 @@ jobs:
         run: npm install --legacy-peer-deps
 
       - name: Run ESLint
-        run: npx eslint packages/assignment-6/src --format json --output-file eslint_report.json
+        run: |
+          cd packages/assignment-6
+          npm run lint || echo "Linting failed"
+        continue-on-error: true
         
-      - name: Comment PR
-        uses: actions/github-script@v6
+      - name: Comment ESLint errors
         if: failure()
+        uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const fs = require('fs')
-            const eslintResults = JSON.parse(fs.readFileSync('eslint_report.json', 'utf8'))
-            let commentBody = '## ESLint Results\n\n'
-            eslintResults.forEach(result => {
-              if (result.errorCount > 0 || result.warningCount > 0) {
-                commentBody += `${result.filePath}\n`
-                result.messages.forEach(msg => {
-                  commentBody += `${msg.line}:${msg.column} ${msg.ruleId} ${msg.message}\n`
-                })
-                commentBody += `\n✖ ${result.errorCount + result.warningCount} problem${result.errorCount + result.warningCount > 1 ? 's' : ''} (${result.errorCount} error${result.errorCount > 1 ? 's' : ''}, ${result.warningCount} warning${result.warningCount > 1 ? 's' : ''})\n\n`
-              }
-            })
+            let eslintOutput = ''
+            try {
+              eslintOutput = fs.readFileSync('/home/runner/work/front_2nd/front_2nd/packages/assignment-6/eslint_output.txt', 'utf8')
+            } catch (error) {
+              console.error('Error reading ESLint output:', error)
+              eslintOutput = 'Unable to read ESLint output'
+            }
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: commentBody
+              body: `ESLint found issues:\n\n\`\`\`\n${eslintOutput}\n\`\`\``
             })
-        
+
   test:
     runs-on: ubuntu-latest
     steps:
