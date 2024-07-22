@@ -8,93 +8,56 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-      
-      - name: Set Up Node.js
-        uses: actions/setup-node@v3
+      - uses: actions/checkout@v2
+      - name: Use Node.js
+        uses: actions/setup-node@v2
         with:
-          node-version: '16'
-
-      - name: Cache dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.OS }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.OS }}-node-
-
-      - name: Install dependencies
-        run: npm install --legacy-peer-deps
-      
-      - name: Change to project directory and build
+          node-version: '14'
+      - run: npm ci
+      - name: Build
+        id: build
         run: |
           cd packages/assignment-6
-          npm run tsc || echo "TypeScript compilation failed"
-          npm run build || echo "Build failed"
+          npm run tsc 2>&1 | tee tsc_error.log || true
+          npm run build 2>&1 | tee build_error.log || true
         continue-on-error: true
-      
-      - name: Comment build errors
-        if: failure()
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{secrets.GITHUB_TOKEN}}
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: 'TSC or Build failed. Please check the logs for more details.'
-            })
-
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '16'
-
-      - name: Cache dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.OS }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.OS }}-node-
-      
-      - name: Install dependencies
-        run: npm install --legacy-peer-deps
-
-      - name: Run ESLint
-        run: |
-          cd packages/assignment-6
-          npm run lint || echo "Linting failed"
-        continue-on-error: true
-        
-      - name: Comment ESLint errors
-        if: failure()
+      - name: Comment PR on Build Failure
+        if: failure() || steps.build.outcome == 'failure'
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const fs = require('fs')
-            let eslintOutput = ''
-            try {
-              eslintOutput = fs.readFileSync('/home/runner/work/front_2nd/front_2nd/packages/assignment-6/eslint_output.txt', 'utf8')
-            } catch (error) {
-              console.error('Error reading ESLint output:', error)
-              eslintOutput = 'Unable to read ESLint output'
+            const tscErrorLog = fs.readFileSync(process.env.GITHUB_WORKSPACE + '/packages/assignment-6/tsc_error.log', 'utf8')
+            const buildErrorLog = fs.readFileSync(process.env.GITHUB_WORKSPACE + '/packages/assignment-6/build_error.log', 'utf8')
+            
+            let failureReasons = []
+            if (tscErrorLog.includes('error TS')) {
+              failureReasons.push('TypeScript Compilation Error')
             }
+            if (buildErrorLog.includes('vite build') && buildErrorLog.includes('error')) {
+              failureReasons.push('Vite Build Error')
+            }
+            if (failureReasons.length === 0) {
+              failureReasons.push('Unknown Build Error')
+            }
+            
+            let commentBody = `## Build Failed: ${failureReasons.join(' and ')}\n\n`
+            commentBody += '### TypeScript Compilation Log\n\n```\n' + tscErrorLog + '\n```\n\n'
+            commentBody += '### Build Log\n\n```\n' + buildErrorLog + '\n```'
+            
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `ESLint found issues:\n\n\`\`\`\n${eslintOutput}\n\`\`\``
+              body: commentBody
             })
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: job2구현
+        run: echo "job2의 내용을 구현해주세요"
 
   test:
     runs-on: ubuntu-latest
