@@ -30,28 +30,42 @@ jobs:
       - name: Change to project directory and build
         run: |
           cd packages/assignment-61
-          npm run tsc || echo "TypeScript compilation failed"
-          npm run build || echo "Build failed"
+          npm run tsc > tsc_output.txt 2>&1 || echo "TSC_FAILED=true" >> $GITHUB_ENV
+          npm run build > build_output.txt 2>&1 || echo "BUILD_FAILED=true" >> $GITHUB_ENV
       
       - name: Comment build errors
-        if: failure()
+        if: env.TSC_FAILED == 'true' || env.BUILD_FAILED == 'true'
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
+            let errorMessage = 'Build Process Errors:\n\n';
+            
+            if (process.env.TSC_FAILED === 'true') {
+              const tscOutput = require('fs').readFileSync('packages/assignment-61/tsc_output.txt', 'utf8');
+              errorMessage += `TypeScript Compilation Errors:\n\`\`\`\n${tscOutput}\n\`\`\`\n\n`;
+            }
+            
+            if (process.env.BUILD_FAILED === 'true') {
+              const buildOutput = require('fs').readFileSync('packages/assignment-61/build_output.txt', 'utf8');
+              errorMessage += `Build Errors:\n\`\`\`\n${buildOutput}\n\`\`\`\n`;
+            }
+            
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'TSC or Build failed. Please check the logs for more details.'
+              body: errorMessage
             })
+
+      - name: Check build result
+        if: env.TSC_FAILED == 'true' || env.BUILD_FAILED == 'true'
+        run: exit 1
 
   lint:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
+      - uses: actions/checkout@v3
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
@@ -71,7 +85,7 @@ jobs:
       - name: Run ESLint
         run: |
           cd packages/assignment-6
-          npm run lint > lint_output.txt 2>&1 || echo "LINT_FAILED=true" >> $GITHUB_ENV
+          npx eslint . --ext .js,.jsx,.ts,.tsx --format json --output-file eslint_report.json || echo "LINT_FAILED=true" >> $GITHUB_ENV
         
       - name: Comment ESLint output
         uses: actions/github-script@v6
@@ -79,23 +93,24 @@ jobs:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const fs = require('fs')
-            let lintOutput = ''
             try {
-              lintOutput = fs.readFileSync('/home/runner/work/front_2nd/front_2nd/packages/assignment-6/lint_output.txt', 'utf8')
+              const eslintReport = JSON.parse(fs.readFileSync('/home/runner/work/front_2nd/front_2nd/packages/assignment-6/eslint_report.json', 'utf8'))
               
-              // ESLint 결과 파싱
-              const lines = lintOutput.split('\n')
               let formattedOutput = 'ESLint Results\n\n'
               let errorCount = 0
               let warningCount = 0
               
-              for (const line of lines) {
-                if (line.includes('error') || line.includes('warning')) {
-                  formattedOutput += line + '\n'
-                  if (line.includes('error')) errorCount++
-                  if (line.includes('warning')) warningCount++
+              eslintReport.forEach(file => {
+                if (file.messages.length > 0) {
+                  formattedOutput += `File: ${file.filePath}\n`
+                  file.messages.forEach(message => {
+                    formattedOutput += `  ${message.line}:${message.column} - ${message.message} (${message.ruleId})\n`
+                    if (message.severity === 2) errorCount++
+                    if (message.severity === 1) warningCount++
+                  })
+                  formattedOutput += '\n'
                 }
-              }
+              })
               
               formattedOutput += `\n✖ ${errorCount + warningCount} problem${errorCount + warningCount !== 1 ? 's' : ''} (${errorCount} error${errorCount !== 1 ? 's' : ''}, ${warningCount} warning${warningCount !== 1 ? 's' : ''})`
               
@@ -106,21 +121,19 @@ jobs:
                 body: formattedOutput
               })
             } catch (error) {
-              console.error('Error reading or parsing lint output:', error)
+              console.error('Error reading or parsing ESLint output:', error)
               github.rest.issues.createComment({
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: 'Unable to read or parse lint output'
+                body: 'Unable to read or parse ESLint output'
               })
             }
 
       - name: Check lint result
         if: env.LINT_FAILED == 'true'
-        run: |
-          cat lint_output.txt
-          exit 1
-
+        run: exit 1
+        
   test:
     runs-on: ubuntu-latest
     steps:
