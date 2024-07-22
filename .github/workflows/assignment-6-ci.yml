@@ -28,7 +28,7 @@ jobs:
       - name: Change to project directory and build
         id: build
         run: |
-          cd packages/assignment-6
+          cd packages/assignment-61
           npm run build 2>&1 | tee build_error.log
           cp build_error.log $GITHUB_WORKSPACE/build_error.log
         continue-on-error: true
