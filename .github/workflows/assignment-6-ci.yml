@@ -48,7 +48,7 @@ jobs:
               body: 'TSC or Build failed. Please check the logs for more details.'
             })
 
-    lint:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -71,7 +71,7 @@ jobs:
       - name: Run ESLint
         run: npm run lint
         continue-on-error: true
-        
+
       - name: Comment ESLint errors
         if: failure()
         uses: actions/github-script@v6
