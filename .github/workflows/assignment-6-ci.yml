@@ -12,13 +12,21 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '16'
+
       - name: Install dependencies
-        run: npm ci
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
       - name: Run TSC and Build
         run: |
           npm run tsc
           npm run build
         continue-on-error: true
+        
       - name: Comment build errors
         if: failure()
         uses: actions/github-script@v6
