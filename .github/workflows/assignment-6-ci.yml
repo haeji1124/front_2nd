@@ -64,28 +64,28 @@ jobs:
           key: ${{ runner.OS }}-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.OS }}-node-
+      
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Run ESLint
+        run: npm run lint
+        continue-on-error: true
         
-        - name: Install dependencies
-          run: npm install --legacy-peer-deps
-
-        - name: Run ESLint
-          run: npm run lint
-          continue-on-error: true
-
-        - name: Comment ESLint errors
-          if: failure()
-          uses: actions/github-script@v6
-          with:
-            github-token: ${{secrets.GITHUB_TOKEN}}
-            script: |
-              const fs = require('fs')
-              const eslintReport = fs.readFileSync('.eslintcache', 'utf8')
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: `ESLint found issues:\n\n\`\`\`\n${eslintReport}\n\`\`\``
-              })
+      - name: Comment ESLint errors
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const fs = require('fs')
+            const eslintReport = fs.readFileSync('.eslintcache', 'utf8')
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `ESLint found issues:\n\n\`\`\`\n${eslintReport}\n\`\`\``
+            })
 
   test:
     runs-on: ubuntu-latest
