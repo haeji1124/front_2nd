@@ -16,21 +16,13 @@ jobs:
         with:
           node-version: '16'
       
-      - name: Change to project directory
-        run: |
-          ls -R
-          cd packages/assignment-6
-      
       - name: Install dependencies
         run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
+          npm install --legacy-peer-deps
       
-      - name: Run TSC and Build
+      - name: Change to project directory and build
         run: |
+          cd packages/assignment-6
           npm run tsc
           npm run build
         continue-on-error: true
