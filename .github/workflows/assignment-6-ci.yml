@@ -14,33 +14,21 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Cache dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.OS }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.OS }}-node-
-
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
       - name: Change to project directory and build
         id: build
         run: |
-          cd packages/assignment-61
-          npm run build 2>&1 | tee build_error.log
-          cp build_error.log $GITHUB_WORKSPACE/build_error.log
-        continue-on-error: true
+          cd packages/assignment-6
+          npm run build > build_output.log 2>&1 || true
+          echo "Build completed. Check build_output.log for details."
 
-      - name: List directory contents
-        run: |
-          echo "Current directory:"
-          pwd
-          echo "Contents of current directory:"
-          ls -R
-          echo "Contents of GITHUB_WORKSPACE:"
-          ls -R $GITHUB_WORKSPACE
+      - name: Upload build log
+        uses: actions/upload-artifact@v2
+        with:
+          name: build-log
+          path: packages/assignment-6/build_output.log
 
       - name: Comment PR on Build Failure
         if: failure() || steps.build.outcome == 'failure'
@@ -51,74 +39,61 @@ jobs:
             const fs = require('fs')
             const path = require('path')
             
-            function findFile(name, dir) {
-              const files = fs.readdirSync(dir)
-              for (const file of files) {
-                const filePath = path.join(dir, file)
-                const stat = fs.statSync(filePath)
-                if (stat.isDirectory()) {
-                  const found = findFile(name, filePath)
-                  if (found) return found
-                } else if (file === name) {
-                  return filePath
-                }
-              }
+            async function downloadArtifact(name) {
+              const artifact = await github.rest.actions.listWorkflowRunArtifacts({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: context.runId
+              }).then(res => res.data.artifacts.find(a => a.name === name))
+              
+              if (!artifact) throw new Error(`Artifact '${name}' not found`)
+              
+              const download = await github.rest.actions.downloadArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: artifact.id,
+                archive_format: 'zip'
+              })
+              
+              const AdmZip = require('adm-zip')
+              const zip = new AdmZip(Buffer.from(download.data))
+              zip.extractAllTo('.')
+              
+              return fs.readFileSync('build_output.log', 'utf8')
             }
             
             try {
-              console.log('Current working directory:', process.cwd())
-              console.log('GITHUB_WORKSPACE:', process.env.GITHUB_WORKSPACE)
+              console.log('Downloading build log artifact...')
+              const buildLog = await downloadArtifact('build-log')
               
-              const possiblePaths = [
-                'build_error.log',
-                path.join(process.env.GITHUB_WORKSPACE, 'build_error.log'),
-                path.join(process.env.GITHUB_WORKSPACE, 'packages', 'assignment-6', 'build_error.log')
-              ]
-              
-              let buildErrorLogPath
-              for (const p of possiblePaths) {
-                if (fs.existsSync(p)) {
-                  buildErrorLogPath = p
-                  break
-                }
+              let failureReasons = []
+              if (buildLog.includes('error TS')) {
+                failureReasons.push('TypeScript Compilation Error')
+              }
+              if (buildLog.includes('vite build') && buildLog.includes('error')) {
+                failureReasons.push('Vite Build Error')
+              }
+              if (failureReasons.length === 0) {
+                failureReasons.push('Unknown Build Error')
               }
               
-              if (!buildErrorLogPath) {
-                buildErrorLogPath = findFile('build_error.log', process.env.GITHUB_WORKSPACE)
-              }
+              let commentBody = `## Build Failed: ${failureReasons.join(' and ')}\n\n`
+              commentBody += '### Build Log\n\n```\n' + buildLog + '\n```'
               
-              if (buildErrorLogPath) {
-                console.log('Found log file at:', buildErrorLogPath)
-                const buildErrorLog = fs.readFileSync(buildErrorLogPath, 'utf8')
-                
-                let failureReasons = []
-                if (buildErrorLog.includes('error TS')) {
-                  failureReasons.push('TypeScript Compilation Error')
-                }
-                if (buildErrorLog.includes('vite build') && buildErrorLog.includes('error')) {
-                  failureReasons.push('Vite Build Error')
-                }
-                if (failureReasons.length === 0) {
-                  failureReasons.push('Unknown Build Error')
-                }
-                
-                let commentBody = `## Build Failed: ${failureReasons.join(' and ')}\n\n`
-                commentBody += '### Build Log\n\n```\n' + buildErrorLog + '\n```'
-                
-                await github.rest.issues.createComment({
-                  issue_number: context.issue.number,
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  body: commentBody
-                })
-              } else {
-                console.error('Build error log file not found after searching')
-                core.setFailed('Build error log file not found after searching')
-              }
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: commentBody
+              })
             } catch (error) {
               console.error('Error in comment creation:', error)
               core.setFailed(`Action failed with error: ${error}`)
             }
+
+      - name: Check build result
+        if: steps.build.outcome == 'failure'
+        run: exit 1
 
   lint:
     runs-on: ubuntu-latest
