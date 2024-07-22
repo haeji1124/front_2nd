@@ -39,29 +39,38 @@ jobs:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const fs = require('fs')
+            const path = require('path')
             try {
-              const buildErrorLog = fs.readFileSync('build_error.log', 'utf8')
+              const buildErrorLogPath = path.join(process.env.GITHUB_WORKSPACE, 'build_error.log')
+              console.log('Attempting to read log file from:', buildErrorLogPath)
               
-              let failureReasons = []
-              if (buildErrorLog.includes('error TS')) {
-                failureReasons.push('TypeScript Compilation Error')
+              if (fs.existsSync(buildErrorLogPath)) {
+                const buildErrorLog = fs.readFileSync(buildErrorLogPath, 'utf8')
+                
+                let failureReasons = []
+                if (buildErrorLog.includes('error TS')) {
+                  failureReasons.push('TypeScript Compilation Error')
+                }
+                if (buildErrorLog.includes('vite build') && buildErrorLog.includes('error')) {
+                  failureReasons.push('Vite Build Error')
+                }
+                if (failureReasons.length === 0) {
+                  failureReasons.push('Unknown Build Error')
+                }
+                
+                let commentBody = `## Build Failed: ${failureReasons.join(' and ')}\n\n`
+                commentBody += '### Build Log\n\n```\n' + buildErrorLog + '\n```'
+                
+                await github.rest.issues.createComment({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: commentBody
+                })
+              } else {
+                console.error('Build error log file not found')
+                core.setFailed('Build error log file not found')
               }
-              if (buildErrorLog.includes('vite build') && buildErrorLog.includes('error')) {
-                failureReasons.push('Vite Build Error')
-              }
-              if (failureReasons.length === 0) {
-                failureReasons.push('Unknown Build Error')
-              }
-              
-              let commentBody = `## Build Failed: ${failureReasons.join(' and ')}\n\n`
-              commentBody += '### Build Log\n\n```\n' + buildErrorLog + '\n```'
-              
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: commentBody
-              })
             } catch (error) {
               console.error('Error in comment creation:', error)
               core.setFailed(`Action failed with error: ${error}`)
