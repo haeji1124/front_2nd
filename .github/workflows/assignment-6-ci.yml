@@ -28,7 +28,7 @@ jobs:
       - name: Change to project directory and build
         id: build
         run: |
-          cd packages/assignment-6
+          cd packages/assignment-61
           npm run build 2>&1 | tee build_error.log || true
         continue-on-error: true
 
