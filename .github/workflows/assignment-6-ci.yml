@@ -24,29 +24,22 @@ jobs:
           node-version: 20
           cache: "pnpm"
 
-      - name: Run build
-        id: build
+      - name: run build
         run: |
-          pnpm -F assignment-6 build
-        continue-on-error: true
-
+          pnpm -F assignment-6 build 2>&1 | tee build.log
       - name: Comment on PR if build fails
-        if: steps.build.outcome == 'failure'
+        if: failure()
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.TOKEN_FOR_CI }}
           script: |
-            const buildOutput = `${process.env.GITHUB_WORKSPACE}/build_output.txt`
-            const fs = require('fs')
-            let errorMessage = '빌드 로그를 확인할 수 없습니다.'
-            if (fs.existsSync(buildOutput)) {
-              errorMessage = fs.readFileSync(buildOutput, 'utf8')
-            }
+            const fs = require('fs');
+            const log = fs.readFileSync('build.log', 'utf8');
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `### ❌ Build Failed\n\n빌드 실패 이유:\n\`\`\`\n${errorMessage}\n\`\`\``
+              body: `### ❌ build Failed\n\`\`\`\n${log}\n\`\`\``
             })
 
 
