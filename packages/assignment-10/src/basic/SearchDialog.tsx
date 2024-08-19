@@ -158,7 +158,10 @@ const SearchDialog = ({ searchInfo, onClose }: Props) => {
     () => filteredLectures.slice(0, page * PAGE_SIZE),
     [filteredLectures, page]
   );
-  const allMajors = [...new Set(lectures.map((lecture) => lecture.major))];
+  const allMajors = useMemo(
+    () => [...new Set(lectures.map((lecture) => lecture.major))],
+    [lectures]
+  );
 
   const changeSearchOption = (
     field: keyof SearchOption,
